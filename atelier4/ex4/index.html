@@ -1,0 +1,251 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Sélection Pays-Région-Ville</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jquery/3.6.0/jquery.min.js"></script>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 600px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+        h1 {
+            text-align: center;
+            color: #333;
+            margin-bottom: 30px;
+        }
+        .form-group {
+            margin-bottom: 20px;
+        }
+        label {
+            display: block;
+            margin-bottom: 5px;
+            font-weight: bold;
+            color: #555;
+        }
+        select {
+            width: 100%;
+            padding: 10px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            box-sizing: border-box;
+            font-size: 16px;
+        }
+        select:disabled {
+            background-color: #f5f5f5;
+        }
+        .loading {
+            display: none;
+            color: #666;
+            font-style: italic;
+            margin-top: 5px;
+        }
+        .selection-display {
+            margin-top: 30px;
+            padding: 15px;
+            background-color: #f8f9fa;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+        }
+        .selection-title {
+            font-weight: bold;
+            margin-bottom: 10px;
+            color: #333;
+        }
+        .selection-info {
+            line-height: 1.5;
+        }
+    </style>
+</head>
+<body>
+    <h1>Sélection Géographique</h1>
+    
+    <div class="form-group">
+        <label for="pays">Pays:</label>
+        <select id="pays">
+            <option value="">--Sélectionnez un pays--</option>
+            <!-- Les pays seront chargés par AJAX -->
+        </select>
+        <div class="loading" id="pays-loading">Chargement des pays...</div>
+    </div>
+    
+    <div class="form-group">
+        <label for="region">Région:</label>
+        <select id="region" disabled>
+            <option value="">--Sélectionnez d'abord un pays--</option>
+        </select>
+        <div class="loading" id="region-loading">Chargement des régions...</div>
+    </div>
+    
+    <div class="form-group">
+        <label for="ville">Ville:</label>
+        <select id="ville" disabled>
+            <option value="">--Sélectionnez d'abord une région--</option>
+        </select>
+        <div class="loading" id="ville-loading">Chargement des villes...</div>
+    </div>
+    
+    <div class="selection-display">
+        <div class="selection-title">Votre sélection:</div>
+        <div class="selection-info" id="selection-info">Aucune sélection effectuée</div>
+    </div>
+
+    <script>
+    $(document).ready(function() {
+        // Chargement initial des pays
+        loadCountries();
+        
+        // Événement de changement de pays
+        $("#pays").change(function() {
+            const paysId = $(this).val();
+            const paysText = $("#pays option:selected").text();
+            
+            // Réinitialiser les listes déroulantes dépendantes
+            $("#region").prop("disabled", true).html('<option value="">--Sélectionnez d\'abord un pays--</option>');
+            $("#ville").prop("disabled", true).html('<option value="">--Sélectionnez d\'abord une région--</option>');
+            
+            updateSelectionInfo();
+            
+            if (paysId !== "") {
+                loadRegions(paysId);
+            }
+        });
+        
+        // Événement de changement de région
+        $("#region").change(function() {
+            const regionId = $(this).val();
+            const regionText = $("#region option:selected").text();
+            
+            // Réinitialiser la liste des villes
+            $("#ville").prop("disabled", true).html('<option value="">--Sélectionnez d\'abord une région--</option>');
+            
+            updateSelectionInfo();
+            
+            if (regionId !== "") {
+                loadCities(regionId);
+            }
+        });
+        
+        // Événement de changement de ville
+        $("#ville").change(function() {
+            updateSelectionInfo();
+        });
+        
+        // Fonction pour charger les pays depuis la base de données
+        function loadCountries() {
+            $("#pays-loading").show();
+            
+            $.ajax({
+                url: "get_countries.php",
+                type: "GET",
+                dataType: "json",
+                success: function(data) {
+                    let options = '<option value="">--Sélectionnez un pays--</option>';
+                    
+                    // Ajouter chaque pays à la liste déroulante
+                    $.each(data, function(index, country) {
+                        options += '<option value="' + country.id + '">' + country.nom + '</option>';
+                    });
+                    
+                    $("#pays").html(options);
+                },
+                error: function(xhr, status, error) {
+                    console.error("Erreur AJAX: " + status + ": " + error);
+                    alert("Erreur lors du chargement des pays");
+                },
+                complete: function() {
+                    $("#pays-loading").hide();
+                }
+            });
+        }
+        
+        // Fonction pour charger les régions d'un pays
+        function loadRegions(paysId) {
+            $("#region-loading").show();
+            
+            $.ajax({
+                url: "get_regions.php",
+                type: "GET",
+                data: { pays_id: paysId },
+                dataType: "json",
+                success: function(data) {
+                    let options = '<option value="">--Sélectionnez une région--</option>';
+                    
+                    // Ajouter chaque région à la liste déroulante
+                    $.each(data, function(index, region) {
+                        options += '<option value="' + region.id + '">' + region.nom + '</option>';
+                    });
+                    
+                    $("#region").html(options).prop("disabled", false);
+                },
+                error: function(xhr, status, error) {
+                    console.error("Erreur AJAX: " + status + ": " + error);
+                    alert("Erreur lors du chargement des régions");
+                },
+                complete: function() {
+                    $("#region-loading").hide();
+                }
+            });
+        }
+        
+        // Fonction pour charger les villes d'une région
+        function loadCities(regionId) {
+            $("#ville-loading").show();
+            
+            $.ajax({
+                url: "get_cities.php",
+                type: "GET",
+                data: { region_id: regionId },
+                dataType: "json",
+                success: function(data) {
+                    let options = '<option value="">--Sélectionnez une ville--</option>';
+                    
+                    // Ajouter chaque ville à la liste déroulante
+                    $.each(data, function(index, city) {
+                        options += '<option value="' + city.id + '">' + city.nom + '</option>';
+                    });
+                    
+                    $("#ville").html(options).prop("disabled", false);
+                },
+                error: function(xhr, status, error) {
+                    console.error("Erreur AJAX: " + status + ": " + error);
+                    alert("Erreur lors du chargement des villes");
+                },
+                complete: function() {
+                    $("#ville-loading").hide();
+                }
+            });
+        }
+        
+        // Fonction pour mettre à jour l'affichage de la sélection
+        function updateSelectionInfo() {
+            const paysId = $("#pays").val();
+            const regionId = $("#region").val();
+            const villeId = $("#ville").val();
+            
+            let selectionText = "Aucune sélection effectuée";
+            
+            if (paysId !== "") {
+                const paysText = $("#pays option:selected").text();
+                selectionText = "Pays: " + paysText;
+                
+                if (regionId !== "") {
+                    const regionText = $("#region option:selected").text();
+                    selectionText += " | Région: " + regionText;
+                    
+                    if (villeId !== "") {
+                        const villeText = $("#ville option:selected").text();
+                        selectionText += " | Ville: " + villeText;
+                    }
+                }
+            }
+            
+            $("#selection-info").text(selectionText);
+        }
+    });
+    </script>
+</body>
+</html>
